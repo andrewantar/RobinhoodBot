@@ -5,6 +5,11 @@ from pandas.plotting import register_matplotlib_converters
 from ta import *
 from misc import *
 from tradingstats import *
+import threading
+import time
+from timeloop import Timeloop
+from datetime import timedelta
+
 
 #Log in to Robinhood
 login = r.login('YOUR_EMAIL','YOUR_PASSWORD')
@@ -205,15 +210,17 @@ def buy_holdings(potential_buys, profile_data, holdings_data):
     prices = r.get_latest_price(potential_buys)
     for i in range(0, len(potential_buys)):
         stock_price = float(prices[i])
-        if(ideal_position_size < stock_price < ideal_position_size*1.5):
-            num_shares = int(ideal_position_size*1.5/stock_price)
-        elif (stock_price < ideal_position_size):
-            num_shares = int(ideal_position_size/stock_price)
-        else:
-            print("####### Tried buying shares of " + potential_buys[i] + ", but not enough buying power to do so#######")
-            break
-        print("####### Buying " + str(num_shares) + " shares of " + potential_buys[i] + " #######")
+        # if(ideal_position_size < stock_price < ideal_position_size*1.5):
+        #     num_shares = int(ideal_position_size*1.5/stock_price)
+        # elif (stock_price < ideal_position_size):
+        #     num_shares = int(ideal_position_size/stock_price)
+        # else:
+        #     print("####### Tried buying shares of " + potential_buys[i] + ", but not enough buying power to do so#######")
+        #     break
+        # print("####### Buying " + str(num_shares) + " shares of " + potential_buys[i] + " #######")
+        num_shares = 1
         r.order_buy_market(potential_buys[i], num_shares)
+        r.order_sell_stop_limit(potential_buys[i], num_shares, stock_price, stock_price - 0.01, timeInForce='gtc')
 
 def scan_stocks():
     """ The main method. Sells stocks in your portfolio if their 50 day moving average crosses
@@ -237,7 +244,7 @@ def scan_stocks():
     print("Current Watchlist: " + str(watchlist_symbols) + "\n")
     print("----- Scanning portfolio for stocks to sell -----\n")
     for symbol in portfolio_symbols:
-        cross = golden_cross(symbol, n1=50, n2=200, days=30, direction="below")
+        cross = golden_cross(symbol, n1=1, n2=2, days=1, direction="below")
         if(cross == -1):
             sell_holdings(symbol, holdings_data)
             sells.append(symbol)
@@ -245,7 +252,7 @@ def scan_stocks():
     print("\n----- Scanning watchlist for stocks to buy -----\n")
     for symbol in watchlist_symbols:
         if(symbol not in portfolio_symbols):
-            cross = golden_cross(symbol, n1=50, n2=200, days=10, direction="above")
+            cross = golden_cross(symbol, n1=1, n2=2, days=1, direction="above")
             if(cross == 1):
                 potential_buys.append(symbol)
     if(len(potential_buys) > 0):
@@ -255,4 +262,9 @@ def scan_stocks():
     print("----- Scan over -----\n")
 
 #execute the scan
-scan_stocks()
+tl = Timeloop()
+@tl.job(interval=timedelta(seconds=86400))
+def daytimer():
+    scan_stocks()
+
+tl.start(block=True)
