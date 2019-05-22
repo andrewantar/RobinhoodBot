@@ -192,6 +192,16 @@ def sell_holdings(symbol, holdings_data):
     r.order_sell_market(symbol, shares_owned)
     print("####### Selling " + str(shares_owned) + " shares of " + symbol + " #######")
 
+def sell_stops(potential_buys):
+    portfolio_symbols = get_portfolio_symbols()
+    prices = r.get_latest_price(potential_buys)
+    for i in range(0, len(potential_buys)):
+        stock_price = float(prices[i])
+        if potential_buys[i] in portfolio_symbols:
+            r.order_sell_stop_limit(potential_buys[i], num_shares, stock_price, stock_price - 0.01, timeInForce='gtc')
+            print("####### Sold " + str(num_shares) + " stop limits of " + potential_buys[i] + " #######")
+    print("----- Scan over -----\n")
+
 def buy_holdings(potential_buys, profile_data, holdings_data):
     """ Places orders to buy holdings of stocks. This method will try to order
         an appropriate amount of shares such that your holdings of the stock will
@@ -210,17 +220,17 @@ def buy_holdings(potential_buys, profile_data, holdings_data):
     prices = r.get_latest_price(potential_buys)
     for i in range(0, len(potential_buys)):
         stock_price = float(prices[i])
-        # if(ideal_position_size < stock_price < ideal_position_size*1.5):
-        #     num_shares = int(ideal_position_size*1.5/stock_price)
-        # elif (stock_price < ideal_position_size):
-        #     num_shares = int(ideal_position_size/stock_price)
-        # else:
-        #     print("####### Tried buying shares of " + potential_buys[i] + ", but not enough buying power to do so#######")
-        #     break
-        # print("####### Buying " + str(num_shares) + " shares of " + potential_buys[i] + " #######")
-        num_shares = 1
+        if(ideal_position_size < stock_price < ideal_position_size*1.5):
+            num_shares = int(ideal_position_size*1.5/stock_price)
+        elif (stock_price < ideal_position_size):
+            num_shares = int(ideal_position_size/stock_price)
+        else:
+            print("####### Tried buying shares of " + potential_buys[i] + ", but not enough buying power to do so#######")
+            break
+        print("####### Buying " + str(num_shares) + " shares of " + potential_buys[i] + " #######")
         r.order_buy_market(potential_buys[i], num_shares)
-        r.order_sell_stop_limit(potential_buys[i], num_shares, stock_price, stock_price - 0.01, timeInForce='gtc')
+    t = threading.Timer(30, sell_stops(potential_buys))
+    t.start()
 
 def scan_stocks():
     """ The main method. Sells stocks in your portfolio if their 50 day moving average crosses
@@ -259,11 +269,10 @@ def scan_stocks():
         buy_holdings(potential_buys, profile_data, holdings_data)
     if(len(sells) > 0):
         update_trade_history(sells, holdings_data, "tradehistory.txt")
-    print("----- Scan over -----\n")
 
 #execute the scan
 tl = Timeloop()
-@tl.job(interval=timedelta(seconds=86400))
+@tl.job(interval=timedelta(seconds=10))
 def daytimer():
     scan_stocks()
 

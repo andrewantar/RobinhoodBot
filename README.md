@@ -17,6 +17,7 @@ install python3 and pip3
 ```pip3 install numpy```
 ```pip3 install ta```
 ```pip3 install matplotlib```
+```pip3 install timeloop```
 
 To Run:
 
